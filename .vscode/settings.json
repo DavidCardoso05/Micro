@@ -1,0 +1,10 @@
+{
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "[python]": { "editor.tabSize": 4 },
+  "verilog.linting.linter": "xvlog",
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv"
+}

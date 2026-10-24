@@ -1,0 +1,44 @@
+# ---- Vivado (the project is rebuilt from scripts/create_project.tcl) ----
+build/
+*.jou
+*.log
+*.str
+*.wdb
+*.pb
+*.backup.*
+.Xil/
+xsim.dir/
+webtalk*
+vivado_pid*.zip
+
+# IP: keep only the .xci configuration, never the generated output
+ip/**
+!ip/**/
+!ip/**/*.xci
+!ip/.gitkeep
+
+# ---- Python ----
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# ---- Toolchain outputs (always regenerated from .asm) ----
+*.mem
+tools/tests/out/
+
+# ---- VS Code: share only project settings ----
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+
+# ---- Old Vivado project kept locally until deleted by hand ----
+_old_vivado/
+
+# ---- Template archive ----
+*.zip
