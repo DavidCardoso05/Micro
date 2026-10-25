@@ -1,8 +1,10 @@
+`timescale 1ns / 1ps
+
 module control_unit (
     input wire [5:0] i_opcode,
     input wire [5:0] i_funct,
-    input  wire [4:0] i_rs,         // instr[25:21] (COP0 decode)
-    input  wire [4:0] i_rd,         // instr[15:11] (COP0 decode)
+    input wire [4:0] i_rs,         // instr[25:21] (COP0 decode)
+    input wire [4:0] i_rd,         // instr[15:11] (COP0 decode)
 
     output reg o_reg_write,
     output reg [1:0]o_reg_dst, // 00: rt, 01: rd, 10: $31
@@ -12,13 +14,14 @@ module control_unit (
     output reg o_mem_write, //1 to sw
     output reg o_mem_read, //1 to lw
     output reg [1:0] o_wb_src, // 00: alu, 01: mem, 10: pc+4
-    output reg o_ie, //1 to eret
+    output reg o_ie_we,  //1 to eret / di / ei (write IE)
+    output reg o_ie_val, //value written to IE
     output reg [2:0] o_pc_src, // 000: pc+4, 001: branch, 010: jump, 011: jr, 100: epc
-    output reg o_branch_ne //1 to beq
+    output reg o_branch_ne //1 to bne
 );
 
 //--------opcode--------
-localparam OP_R_TYPE = 6'b000000,
+localparam OP_RTYPE = 6'b000000,
             OP_ADDI = 6'b001000,
             OP_LW = 6'b100011,
             OP_SW = 6'b101011,
@@ -47,7 +50,7 @@ localparam F_ADD = 6'b100000,
 
 //--------COP0 funct--------
 localparam F_ERET = 6'b011000,
-            RS_MFC0 = 5'b01011,
+            RS_MFMC0 = 5'b01011,
             RD_STATUS = 5'b01100;
 
 //--------ALU Control--------
@@ -74,7 +77,7 @@ localparam PC_NEXT = 3'b000,
         // safe defaults = nop
         o_reg_write = 1'b0;  o_reg_dst  = 2'b00;    o_alu_src   = 1'b0;
         o_ext_op    = 1'b1;  o_mem_read = 1'b0;     o_mem_write = 1'b0;
-        o_wb_src    = 2'b00; o_pc_src   = PC_PLUS4; o_branch_ne = 1'b0;
+        o_wb_src    = 2'b00; o_pc_src   = PC_NEXT; o_branch_ne = 1'b0;
         o_alu_ctrl  = ALU_ADD; o_ie_we  = 1'b0;     o_ie_val    = 1'b0;
 
         case (i_opcode)
@@ -117,10 +120,4 @@ localparam PC_NEXT = 3'b000,
             default: ;  // unknown opcode -> nop
         endcase
     end
-
 endmodule
-
-
-
-
-
