@@ -5,6 +5,6 @@
   "editor.tabSize": 4,
   "editor.insertSpaces": true,
   "[python]": { "editor.tabSize": 4 },
-  "verilog.linting.linter": "xvlog",
+  "verilog.linting.path": "/tools/Xilinx/Vivado/2024.2/bin/",
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv"
 }
