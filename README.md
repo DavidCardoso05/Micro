@@ -1,7 +1,7 @@
 # Single-Cycle MIPS32 SoC — Zybo Z7-10
 
-*Projecto de Sistemas Dedicados*, Universidade do Minho.
-David Cardoso (PG63873) · Ana Sofia Cunha (A107017)
+*Projecto de Arquitetura de Microprocessadores Avançada*, Universidade do Minho.
+David Cardoso · Ana Sofia Cunha
 
 A 32-bit single-cycle MIPS processor in Verilog-2001 with a Python toolchain
 (assembler, reference simulator, automated XSim test runner).
