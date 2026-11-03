@@ -2,12 +2,13 @@
 
 // Banco de registos: 32 x 32 bits
 // - 2 leituras assíncronas (i_ra1, i_ra2)
-// - 1 escrita síncrona (flanco de subida de i_clk) com i_we = 1
+// - 1 escrita síncrona (flanco de subida de i_clk) com i_en && i_we = 1
 // - $zero (registo 0) vale sempre 0 e nunca é escrito
 module register_file (
     input  wire        i_clk,
     input  wire        i_rst,
-    input  wire        i_we,     // write enable
+    input  wire        i_en,     // step/enable (spec 8.3): gates all state updates
+    input  wire        i_we,     // RegWrite from the control unit
     input  wire [4:0]  i_ra1,    // endereço de leitura 1 (rs)
     input  wire [4:0]  i_ra2,    // endereço de leitura 2 (rt)
     input  wire [4:0]  i_wa,     // endereço de escrita
@@ -23,12 +24,12 @@ module register_file (
         if (i_rst) begin
             for (index = 0; index < 32; index = index + 1)
                 rf[index] <= 32'b0;
-        end else if (i_we && (i_wa != 5'b00000)) begin
+        end else if (i_en && i_we && (i_wa != 5'b00000)) begin
             rf[i_wa] <= i_wd;
         end
     end
 
-    assign o_rd1 = rf[i_ra1];
-    assign o_rd2 = rf[i_ra2];
+    assign o_rd1 = (i_ra1 == 5'b00000) ? 32'b0 : rf[i_ra1];   // $zero reads 0 even before reset
+    assign o_rd2 = (i_ra2 == 5'b00000) ? 32'b0 : rf[i_ra2];
 
 endmodule
