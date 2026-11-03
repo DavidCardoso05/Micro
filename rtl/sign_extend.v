@@ -10,5 +10,3 @@ module sign_extend (
 );
     assign o_ext = i_ext_op ? {{16{i_imm[15]}}, i_imm} : {16'b0, i_imm};
 endmodule
-
-´
