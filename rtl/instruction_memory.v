@@ -1,15 +1,13 @@
 `timescale 1ns / 1ps
 
-// Memória de instruções (ROM), leitura combinatória
+// Memória de instruções (ROM), leitura assíncrona (fica em LUTs)
 // - i_addr é endereço de byte (vem do PC); o índice usa i_addr[ADDR_BITS+1:2]
-// - 2^ADDR_BITS palavras de 32 bits (por defeito 256 palavras = 1 KB)
+// - 2^ADDR_BITS palavras de 32 bits (por defeito 512 palavras = 2 KB)
 // - posições não preenchidas pelo ficheiro ficam a 0 (nop)
 module instruction_memory #(
-    parameter ADDR_BITS = 8,
+    parameter ADDR_BITS = 9,
     parameter INIT_FILE = "program.mem"
 )(
-    input  wire        i_clk,    // não usado (leitura combinatória); mantido
-                                 // para ficar igual à interface do soc
     input  wire [31:0] i_addr,
     output wire [31:0] o_instr
 );

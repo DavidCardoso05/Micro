@@ -1,22 +1,7 @@
 `timescale 1ns / 1ps
 
-// ALU (spec rev 3, section 7)
 // Purely combinational. 4-bit control, 10 operations, 6 reserved codes.
 // Not used by mfc0 / di / ei / bgez (their ALUCtrl is a don't care).
-//
-//   ALUCtrl  Operation  Result            Used by
-//   0000     AND        A & B             and
-//   0001     OR         A | B             or
-//   0010     ADD        A + B             add, addi, lw, lb, sw
-//   0011     XOR        A ^ B             xor, xori
-//   0100     SLL        B << shamt        sll
-//   0101     SRL        B >> shamt        srl
-//   0110     SUB        A - B             sub, beq, bne, bgtz
-//   0111     SLT        A < B (signed)    slt
-//   1000     NOR        ~(A | B)          nor
-//   1001     -          reserved (was SLTU in rev 2) -> 0
-//   1010     LUI        B[15:0] << 16     lui
-//   1011-1111 -         reserved -> 0
 
 module alu (
     input  wire [31:0] i_a,      // rs
