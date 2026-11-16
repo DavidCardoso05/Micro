@@ -1,22 +1,22 @@
 `timescale 1ns / 1ps
 
-// Next-PC logic (spec rev 3, section 6.2)
+// Next-PC logic
 // Purely combinational. Computes every PC candidate and selects one with
 // PCSrc from the control unit. The branch condition is decided in the
-// control unit (spec 6.1), so here PCSrc = 001 always means "taken".
+// control unit, so here PCSrc = 001 always means "taken".
 //
 //   PCSrc  Next PC                              Used by
 //   000    PC + 4                               sequential execution
 //   001    (PC + 4) + (SignExt(imm) << 2)       beq, bne, bgez, bgtz (taken)
 //   010    {(PC + 4)[31:28], index, 00}         j, jal
 //   011    rs                                   jr
-//   100    IRQ_VECTOR                           interrupt entry (Phase 2)
+//   100    IRQ_VECTOR                           interrupt entry
 //   101-111 reserved -> PC + 4
 //
 // o_pc_plus4 is also the link value written by jal (WBSrc = 10).
 
 module next_pc #(
-    parameter IRQ_VECTOR = 32'h0000_0004    // placeholder, fixed in Phase 2
+    parameter IRQ_VECTOR = 32'h0000_0004    // interrupt vector
 ) (
     input  wire [31:0] i_pc,         // current PC
     input  wire [15:0] i_imm,        // instr[15:0]  branch offset (in words)

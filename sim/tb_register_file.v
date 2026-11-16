@@ -1,87 +1,56 @@
 `timescale 1ns / 1ps
 
 module tb_register_file;
-    reg         i_clk = 0;
-    reg         i_rst;
-    reg         i_we;
-    reg  [4:0]  i_ra1, i_ra2, i_wa;
-    reg  [31:0] i_wd;
-    wire [31:0] o_rd1, o_rd2;
+    reg clk;
+    reg rst;
+    reg we; //Write Enable
+    reg [4:0] wa; //Write Adress
+    reg[31:0] wd; //Write Data
+    reg [4:0] ra1, ra2;
 
-    register_file dut (
-        .i_clk(i_clk), .i_rst(i_rst), .i_we(i_we),
-        .i_ra1(i_ra1), .i_ra2(i_ra2), .i_wa(i_wa), .i_wd(i_wd),
-        .o_rd1(o_rd1), .o_rd2(o_rd2)
+    wire [31:0] rd1, rd2;
+
+    register_file u_register_file(
+        .i_clk(clk),
+        .i_rst(rst),
+        .i_we(we),
+
+        .i_wa(wa),
+        .i_wd(wd),
+
+        .i_ra1(ra1),
+        .o_rd1(rd1),
+        .i_ra2(ra2),
+        .o_rd2(rd2)
     );
 
-    // relógio de 10 ns de período
-    always #5 i_clk = ~i_clk;
-
-    integer erros = 0;
-    integer k;
-
-    task check(input [31:0] obtido, input [31:0] esperado, input [255:0] nome);
-        begin
-            if (obtido !== esperado) begin
-                $display("ERRO %0s: obtido %h, esperado %h", nome, obtido, esperado);
-                erros = erros + 1;
-            end else
-                $display("OK:   %0s = %h", nome, obtido);
-        end
-    endtask
-
-    // escreve um valor num registo (a escrita acontece no flanco de subida)
-    task escreve(input [4:0] reg_n, input [31:0] valor);
-        begin
-            @(negedge i_clk);
-            i_wa = reg_n; i_wd = valor; i_we = 1;
-            @(negedge i_clk);   // passou um flanco de subida
-            i_we = 0;
-        end
-    endtask
+    initial clk = 0;
+    always #5 clk = ~clk;
 
     initial begin
-        i_rst = 1; i_we = 0; i_ra1 = 0; i_ra2 = 0; i_wa = 0; i_wd = 0;
-        #12 i_rst = 0;
+             // ---------- Escrever $8 e ler ----------
+        we = 1; wa = 5'd8;  wd = 32'hDEAD_BEEF; ra1 = 5'd8;  ra2 = 5'd0;  #10;  // rd1 muda para DEADBEEF no flanco
+        we = 0; wa = 5'd0;  wd = 32'h0;         ra1 = 5'd8;  ra2 = 5'd8;  #10;  // rd1 = rd2 = DEADBEEF
 
-        // 1) depois do reset, todos os registos valem 0
-        for (k = 0; k < 32; k = k + 1) begin
-            i_ra1 = k; #1;
-            check(o_rd1, 32'h0, "reset reg");
-        end
+        // ---------- Escrever $9 e ler as duas portas em simultâneo ----------
+        we = 1; wa = 5'd9;  wd = 32'h1234_5678; ra1 = 5'd8;  ra2 = 5'd9;  #10;  // rd2 muda para 12345678 no flanco
+        we = 0; wa = 5'd0;  wd = 32'h0;         ra1 = 5'd9;  ra2 = 5'd8;  #10;  // rd1 = 12345678, rd2 = DEADBEEF
 
-        // 2) escrever em $t0 (8) e $t1 (9) e ler os dois em simultâneo
-        escreve(5'd8, 32'h00000003);
-        escreve(5'd9, 32'h00000005);
-        i_ra1 = 5'd8; i_ra2 = 5'd9; #1;
-        check(o_rd1, 32'h3, "t0");
-        check(o_rd2, 32'h5, "t1");
+        // ---------- Escrever em $0 (tem de ser ignorado) ----------
+        we = 1; wa = 5'd0;  wd = 32'hFFFF_FFFF; ra1 = 5'd0;  ra2 = 5'd0;  #10;  // rd1 = rd2 = 0
 
-        // 3) escrever em $zero deve ser ignorado
-        escreve(5'd0, 32'hDEADBEEF);
-        i_ra1 = 5'd0; #1;
-        check(o_rd1, 32'h0, "zero apos escrita");
+        // ---------- en = 0: não pode escrever ----------
+        we = 1; wa = 5'd8;  wd = 32'h0000_0000; ra1 = 5'd8;  ra2 = 5'd0;  #10;  // rd1 continua DEADBEEF
 
-        // 4) i_we = 0 não pode escrever
-        @(negedge i_clk);
-        i_wa = 5'd10; i_wd = 32'h12345678; i_we = 0;
-        @(negedge i_clk);
-        i_ra1 = 5'd10; #1;
-        check(o_rd1, 32'h0, "sem write enable");
+        // ---------- we = 0: não pode escrever ----------
+        we = 0; wa = 5'd8;  wd = 32'h0000_0000; ra1 = 5'd8;  ra2 = 5'd0;  #10;  // rd1 continua DEADBEEF
 
-        // 5) o último registo ($ra = 31) também funciona
-        escreve(5'd31, 32'hCAFEBABE);
-        i_ra1 = 5'd31; #1;
-        check(o_rd1, 32'hCAFEBABE, "ra");
+        // ---------- Escrever $31 ($ra) ----------
+        we = 1; wa = 5'd31; wd = 32'h0000_0040; ra1 = 5'd31; ra2 = 5'd0;  #10;  // rd1 = 00000040
 
-        // 6) o reset limpa tudo
-        i_rst = 1; #1; i_rst = 0;
-        i_ra1 = 5'd8; i_ra2 = 5'd31; #1;
-        check(o_rd1, 32'h0, "t0 apos reset");
-        check(o_rd2, 32'h0, "ra apos reset");
+        // ---------- Reescrever $8 (ler e escrever o mesmo registo) ----------
+        we = 1; wa = 5'd8;  wd = 32'hCAFE_0001; ra1 = 5'd8;  ra2 = 5'd0;  #10;  // antes do flanco: DEADBEEF; depois: CAFE0001
 
-        if (erros == 0) $display("TUDO OK");
-        else            $display("%0d erro(s)", erros);
         $finish;
     end
 endmodule

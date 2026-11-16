@@ -1,31 +1,28 @@
 `timescale 1ns / 1ps
 
-// Program Counter register (spec rev 3, sections 8.3 and 9)
-// - synchronous, active-high reset: PC <- 0
-// - i_en gates the update (step/enable): when i_en = 0 the PC holds
-// - i_next_pc comes from next_pc (PCSrc already applied there)
-//
-// With a registered-output instruction memory (READ_LATENCY = 1) the memory
-// is addressed with i_next_pc, the D input of this register, so that the
-// instruction arrives in the same cycle as the new PC (see instruction_memory.v).
+// Registo do PC
+// - reset síncrono, ativo a 1: PC = 0x0000_0000
+// - i_we = PCWrite (da Control Unit): só com i_we = 1 o PC recebe i_next_pc
+//   (i_we = 0 no 1.º ciclo de lw / lb)
 module pc_reg (
     input  wire        i_clk,
     input  wire        i_rst,
-    input  wire        i_en,
+    input  wire        i_we,        // PCWrite
     input  wire [31:0] i_next_pc,
     output wire [31:0] o_pc
 );
+
+    localparam RESET_PC = 32'h0000_0000;
 
     reg [31:0] pc_r;
 
     always @(posedge i_clk) begin
         if (i_rst)
-            pc_r <= 32'h0000_0000;
-        else if (i_en)
+            pc_r <= RESET_PC;
+        else if (i_we)
             pc_r <= i_next_pc;
     end
 
     assign o_pc = pc_r;
 
 endmodule
-

@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
 // Extensor de imediato de 16 para 32 bits
-// i_ext_op = 1 -> extensão com sinal (addi, lw, sw, beq, bne)
-// i_ext_op = 0 -> extensão com zeros (andi, ori, xori, lui)
+// i_ext_op = 1 -> extensão com sinal (addi, lw, lb, sw)
+// i_ext_op = 0 -> extensão com zeros (xori, lui)
 module sign_extend (
     input  wire [15:0] i_imm,
     input  wire        i_ext_op,

@@ -1,15 +1,22 @@
 `timescale 1ns / 1ps
 
-// Control Unit (spec rev 3, section 6)
-// Purely combinational. Three stages, each in its own block:
+// Control Unit
+// Purely combinational. Four stages:
 //
 //   1. Instruction decode: the control word as a function of the
 //      instruction fields only (no status signals).
-//   2. Branch condition (spec 6.1): uses the status signals i_zero and
-//      i_rs_neg to decide if a branch is taken.
-//   3. Next-PC select and interrupt cancellation (spec 10.2): when
-//      i_irq_take = 1 the instruction at PC is cancelled (no register,
-//      memory or IE write, no memory read) and PCSrc selects the vector.
+//   2. Branch condition: uses the status signals i_zero and i_rs_neg
+//      to decide if a branch is taken.
+//   3. Next-PC select: when i_irq_take = 1, PCSrc selects the vector.
+//   4. Load wait and interrupt cancellation:
+//        MemWait = MemEnable & MemRW & ~MemPhase & ~irq_take
+//        PCWrite = ~MemWait
+//      lw / lb take two cycles (the data memory reads synchronously):
+//      in the first one (MemPhase = 0) PC and the register file are held;
+//      in the second one (MemPhase = 1) the loaded value is written back
+//      and MemEnable = 0, so the memory is read only once.
+//      When i_irq_take = 1 the instruction at PC is cancelled (no register,
+//      memory or IE access) and PCWrite = 1 so the vector is loaded.
 //
 // Unknown encodings (opcode, funct, REGIMM rt, bgtz rt, COP0 fields)
 // behave as nop: no writes, PCSrc = PC + 4.
@@ -25,7 +32,8 @@ module control_unit (
     // ---------- status signals (datapath -> CU) ----------
     input  wire       i_zero,       // ALU result == 0
     input  wire       i_rs_neg,     // rs[31], straight from register-file port A
-    input  wire       i_irq_take,   // Phase 2: i_irq & ie_r & ~ei_shadow_r (0 in Phase 1)
+    input  wire       i_irq_take,   // irq & IE & ~ei_shadow & ~MemPhase (from cop0)
+    input  wire       i_mem_phase,  // 1 in the second cycle of lw / lb
 
     // ---------- control word (CU -> datapath) ----------
     output wire       o_reg_write,
@@ -33,11 +41,12 @@ module control_unit (
     output reg        o_alu_src,    // 0: rt, 1: extended immediate
     output reg  [3:0] o_alu_ctrl,
     output reg        o_ext_op,     // 0: zero extend, 1: sign extend
-    output wire       o_mem_read,
-    output wire       o_mem_write,
+    output wire       o_mem_enable, // data memory access (lw, lb, sw)
+    output wire       o_mem_rw,     // 1: read, 0: write (only meaningful with o_mem_enable)
     output reg        o_load_byte,  // 0: lw (whole word), 1: lb (sign-extended byte)
     output reg  [1:0] o_wb_src,     // 00: ALU, 01: load-ext, 10: PC + 4, 11: EPC
     output reg  [2:0] o_pc_src,     // see PC_* below
+    output wire       o_pc_write,   // enable of the PC register
     output wire       o_ie_we,      // di / ei write IE
     output reg        o_ie_val      // value written to IE (= instr[5])
 );
@@ -76,7 +85,7 @@ module control_unit (
                RS_MFC0  = 5'b00000,  // COP0 rs = MF
                RS_MFMC0 = 5'b01011,  // COP0 rs = MFMC0 (di / ei)
                RD_EPC   = 5'd14,     // CP0 register 14
-               RD_SR    = 5'd12,     // CP0 register 12 (Status), fixed field of di / ei
+               RD_SR    = 5'b01100,     // CP0 register 12 (Status), fixed field of di / ei
                SEL_0    = 3'b000;
 
     // ---------- ALUCtrl (spec 7) ----------
@@ -105,7 +114,7 @@ module control_unit (
                PC_BRANCH = 3'b001,   // (PC + 4) + (SignExt(imm) << 2)
                PC_JUMP   = 3'b010,   // {(PC + 4)[31:28], index, 00}
                PC_JR     = 3'b011,   // rs
-               PC_VECTOR = 3'b100;   // interrupt vector (Phase 2)
+               PC_VECTOR = 3'b100;   // interrupt vector
 
     // ---------- branch kinds (internal) ----------
     localparam BR_NONE = 3'd0,
@@ -116,8 +125,8 @@ module control_unit (
 
     // decoded write/read enables, before interrupt cancellation
     reg       dec_reg_write;
-    reg       dec_mem_read;
-    reg       dec_mem_write;
+    reg       dec_mem_enable;
+    reg       dec_mem_rw;            // 1: read, 0: write
     reg       dec_ie_we;
     reg [2:0] dec_pc_src;            // PC source when no branch is taken
     reg [2:0] dec_branch;            // which branch condition to test
@@ -133,8 +142,8 @@ module control_unit (
         o_alu_src     = 1'b0;
         o_alu_ctrl    = ALU_ADD;
         o_ext_op      = 1'b1;
-        dec_mem_read  = 1'b0;
-        dec_mem_write = 1'b0;
+        dec_mem_enable = 1'b0;
+        dec_mem_rw     = 1'b1;
         o_load_byte   = 1'b0;
         o_wb_src      = WB_ALU;
         dec_pc_src    = PC_NEXT;
@@ -167,14 +176,14 @@ module control_unit (
             // ---------- loads / store (address = rs + SignExt(imm)) ----------
             OP_LW: begin
                 dec_reg_write = 1'b1; o_alu_src = 1'b1; o_alu_ctrl = ALU_ADD;
-                dec_mem_read  = 1'b1; o_wb_src  = WB_MEM;
+                dec_mem_enable = 1'b1; dec_mem_rw = 1'b1; o_wb_src = WB_MEM;
             end
             OP_LB: begin
                 dec_reg_write = 1'b1; o_alu_src = 1'b1; o_alu_ctrl = ALU_ADD;
-                dec_mem_read  = 1'b1; o_wb_src  = WB_MEM; o_load_byte = 1'b1;
+                dec_mem_enable = 1'b1; dec_mem_rw = 1'b1; o_wb_src = WB_MEM; o_load_byte = 1'b1;
             end
             OP_SW: begin
-                dec_mem_write = 1'b1; o_alu_src = 1'b1; o_alu_ctrl = ALU_ADD;
+                dec_mem_enable = 1'b1; dec_mem_rw = 1'b0; o_alu_src = 1'b1; o_alu_ctrl = ALU_ADD;
             end
 
             // ---------- branches: ALU computes rs - rt (sets i_zero) ----------
@@ -226,7 +235,7 @@ module control_unit (
     end
 
     // ================================================================
-    // 3. Next-PC select and interrupt cancellation
+    // 3. Next-PC select
     // ================================================================
     always @(*) begin
         o_pc_src = dec_pc_src;
@@ -236,11 +245,21 @@ module control_unit (
             o_pc_src = PC_BRANCH;
     end
 
-    // A cancelled instruction leaves no trace. MemRead is also cancelled,
-    // because an MMIO read can have side effects (e.g. popping a UART FIFO).
-    assign o_reg_write = dec_reg_write & ~i_irq_take;
-    assign o_mem_read  = dec_mem_read  & ~i_irq_take;
-    assign o_mem_write = dec_mem_write & ~i_irq_take;
-    assign o_ie_we     = dec_ie_we     & ~i_irq_take;
+    // ================================================================
+    // 4. Load wait and interrupt cancellation
+    // ================================================================
+    // First cycle of lw / lb: hold PC and do not write the register file.
+    wire mem_wait = dec_mem_enable & dec_mem_rw & ~i_mem_phase & ~i_irq_take;
+
+    assign o_pc_write = ~mem_wait;
+
+    // A cancelled instruction leaves no trace: no register, memory or IE access.
+    // MemEnable is 0 in the second cycle of a load (MemPhase = 1), so the memory
+    // is read only once; its output register keeps the value read in cycle 1.
+    // (sw never has MemPhase = 1, because it does not wait.)
+    assign o_reg_write  = dec_reg_write  & ~i_irq_take & ~mem_wait;
+    assign o_mem_enable = dec_mem_enable & ~i_irq_take & ~i_mem_phase;
+    assign o_mem_rw     = dec_mem_rw;
+    assign o_ie_we      = dec_ie_we      & ~i_irq_take;
 
 endmodule
