@@ -1,0 +1,9 @@
+// Conteudo da IMEM para tb_instruction_memory (formato $readmemh)
+08000010   // 0x00  j main            (main em 0x40)
+401A7000   // 0x04  mfc0 $k0, $14     (inicio do handler)
+41606020   // 0x08  ei
+03400008   // 0x0C  jr $k0
+20080005   // 0x10  addi $8, $0, 5
+// 0x14 a 0x7F8: nao preenchido, fica a 0 (nop)
+@1FF
+DEADBEEF   // 0x7FC  ultima palavra

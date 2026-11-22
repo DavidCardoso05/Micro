@@ -19,6 +19,10 @@ if {[llength $rtl]} { add_files -norecurse $rtl }
 set tbs [glob -nocomplain [file join $root sim *.v]]
 if {[llength $tbs]} { add_files -fileset sim_1 -norecurse $tbs }
 
+# Memory files read by $readmemh in the testbenches
+set mems [glob -nocomplain [file join $root sim *.mem]]
+if {[llength $mems]} { add_files -fileset sim_1 -norecurse $mems }
+
 # IP (only the .xci configuration is kept in git, under ip/<name>/).
 # import_ip copies the .xci into the project, so the generated output stays inside build/
 # and ip/ is never touched. Vivado regenerates the IP (rf_dpram, the register file RAM) here.

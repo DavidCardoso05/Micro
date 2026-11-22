@@ -24,6 +24,7 @@ __pycache__/
 
 # ---- Toolchain outputs (always regenerated from .asm) ----
 *.mem
+!sim/*.mem
 tools/tests/out/
 
 # ---- VS Code: share only project settings ----
