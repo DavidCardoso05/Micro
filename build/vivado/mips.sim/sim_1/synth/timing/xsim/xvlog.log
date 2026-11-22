@@ -1,0 +1,5 @@
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/david/MIPS/build/vivado/mips.sim/sim_1/synth/timing/xsim/tb_cop0_time_synth.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module cop0
+INFO: [VRFC 10-311] analyzing module glbl
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/david/MIPS/sim/tb_cop0.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module tb_cop0

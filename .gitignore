@@ -1,5 +1,4 @@
-# ---- Vivado (the project is rebuilt from scripts/create_project.tcl) ----
-build/
+# ---- Vivado ----
 *.jou
 *.log
 *.str
@@ -42,3 +41,6 @@ _old_vivado/
 
 # ---- Template archive ----
 *.zip
+
+# ---- Vivado build folder: committed in full ----
+!build/**
