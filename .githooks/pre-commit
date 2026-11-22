@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# build/ is generated locally by scripts/create_project.tcl and must not be
+# committed (it holds machine-specific paths). Block it even if force-added.
+staged_build=$(git diff --cached --name-only --diff-filter=ACMR -- build/)
+if [[ -n $staged_build ]]; then
+  echo "ERROR: files under build/ are staged for commit:" >&2
+  echo "$staged_build" | head -10 | sed 's/^/  /' >&2
+  echo "Unstage them with: git rm -r --cached build" >&2
+  echo "Commit blocked (bypass with git commit --no-verify)." >&2
+  exit 1
+fi

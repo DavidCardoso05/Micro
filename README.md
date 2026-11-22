@@ -14,7 +14,9 @@ em dois ciclos.
 |---|---|
 | `rtl/` | Módulos sintetizáveis |
 | `sim/` | Testbenches (`tb_<módulo>.v`) |
-| `scripts/` | `create_project.tcl`, que recria o projeto Vivado |
+| `ip/` | Configuração dos IPs Vivado (só o `.xci`; o resto é gerado) |
+| `scripts/` | `create_project.tcl`, que recria o projeto Vivado; `check_xpr.sh` |
+| `.githooks/` | Hook de pre-commit (ver abaixo) |
 
 ### Módulos (`rtl/`)
 
@@ -48,4 +50,25 @@ O topo de simulação por omissão é `tb_alu`; para correr outro testbench, mud
 topo do fileset `sim_1` no Vivado ou no script.
 
 > **Nota:** `register_file.v` instancia o IP `rf_dpram` (Distributed Memory
-> Generator, RAM de dupla porta). Esse IP tem de ser gerado no projeto Vivado.
+> Generator, RAM de dupla porta). A configuração está em `ip/rf_dpram/rf_dpram.xci`
+> e o script gera-o automaticamente.
+
+### Trabalhar a dois
+
+O projeto Vivado **não** está no git: cada pessoa gera-o localmente com o
+script, por isso aponta sempre para o seu próprio clone, esteja onde estiver no
+disco. Para acrescentar um ficheiro, põe-no em `rtl/` (ou `sim/`, ou
+`ip/<nome>/<nome>.xci`), fecha o projeto no Vivado e volta a correr o script.
+Ficheiros adicionados só pelo "Add Sources" do Vivado não chegam à outra pessoa.
+
+Para confirmar que o projeto local só usa ficheiros deste repositório:
+
+```bash
+scripts/check_xpr.sh
+```
+
+Depois de clonar, ativa uma vez o hook que impede commits de `build/`:
+
+```bash
+git config core.hooksPath .githooks
+```

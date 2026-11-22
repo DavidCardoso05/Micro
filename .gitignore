@@ -1,4 +1,6 @@
 # ---- Vivado ----
+# Generated project: recreate with scripts/create_project.tcl
+build/
 *.jou
 *.log
 *.str
