@@ -1,7 +1,0 @@
-Running: xsim.dir/next_pc_behav/xsimk -simmode gui -wdb next_pc_behav.wdb -simrunnum 0 -socket 58167
-Design successfully loaded
-Design Loading Memory Usage: 180328 KB (Peak: 180384 KB)
-Design Loading CPU Usage: 480 ms
-Simulation completed
-Simulation Memory Usage: 266164 KB (Peak: 319596 KB)
-Simulation CPU Usage: 490 ms
