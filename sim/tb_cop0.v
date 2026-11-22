@@ -23,12 +23,12 @@ module tb_cop0;
         .o_irq_take(irq_take)
     );
 
-    initial clk = 0;
+    initial clk = 5;
     always #5 clk = ~clk;
 
     initial begin
         // ---------- reset: EPC = 0, IE = 0 ----------
-        rst = 1; pc = 32'h0; irq = 0; mem_phase = 0; ie_we = 0; ie_val = 0; #10;
+        rst = 1; pc = 32'h0; irq = 0; mem_phase = 0; ie_we = 0; ie_val = 0; #11;
 
         // ---------- IE = 0: o pedido é ignorado ----------
         rst = 0; pc = 32'h20; irq = 1; #10;  // irq_take = 0

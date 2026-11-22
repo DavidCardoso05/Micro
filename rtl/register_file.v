@@ -1,35 +1,39 @@
 `timescale 1ns / 1ps
 
-// Banco de registos: 32 x 32 bits
-// - 2 leituras assíncronas (i_ra1, i_ra2)
-// - 1 escrita síncrona (flanco de subida de i_clk) com i_we = 1
-// - $zero (registo 0) vale sempre 0 e nunca é escrito
-
-module register_file (
-    input  wire        i_clk,
-    input  wire        i_rst,
-    input  wire        i_we,     // write enable
-    input  wire [4:0]  i_ra1,    // endereço de leitura 1 (rs)
-    input  wire [4:0]  i_ra2,    // endereço de leitura 2 (rt)
-    input  wire [4:0]  i_wa,     // endereço de escrita
-    input  wire [31:0] i_wd,     // dado a escrever
-    output wire [31:0] o_rd1,    // dado lido 1
-    output wire [31:0] o_rd2     // dado lido 2
+module register_file(
+    input wire i_clk,
+    input wire [4:0] i_ra1, //rs - read address 1
+    input wire [4:0] i_ra2, //rt - read address 2
+    input wire [4:0] i_wa,  //write address register
+    input wire [31:0] i_wd, //write data
+    input wire i_we,        //RegWrite
+    output wire [31:0] o_rd1, //read data 1
+    output wire [31:0] o_rd2  //read data 2
 );
 
-    reg [31:0] _rf [0:31];
-    integer index;
+    wire we_nzero;
 
-    always @(posedge i_clk) begin
-        if (i_rst) begin
-            for (index = 0; index < 32; index = index + 1)
-                _rf[index] <= 32'b0;
-        end else if (i_we && (i_wa != 5'b00000)) begin
-            _rf[i_wa] <= i_wd;
-        end
-    end
+    //never writes register 0
+    assign we_nzero = i_we & (i_wa != 5'b0);
 
-    assign o_rd1 = (i_ra1 == 5'b00000) ? 32'b0 : _rf[i_ra1];
-    assign o_rd2 = (i_ra2 == 5'b00000) ? 32'b0: _rf[i_ra2];
+    rf_dpram u_rf_dpram_rs(
+        .a (i_wa),
+        .d (i_wd),
+        .dpra (i_ra1),
+        .clk (i_clk),
+        .we (we_nzero),
+
+        .dpo (o_rd1)
+    );
+
+    rf_dpram u_rf_dpram_rt(
+        .a (i_wa),
+        .d (i_wd),
+        .dpra (i_ra2),
+        .clk (i_clk),
+        .we (we_nzero),
+
+        .dpo (o_rd2)
+    );
 
 endmodule

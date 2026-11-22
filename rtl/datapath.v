@@ -1,142 +1,186 @@
-`timescale 1ns / 1ps
+`timescale 1ns/1ps
+`default_nettype none
 
-// Datapath. Contains no decoding: everything is driven by the control word
-// from control_unit. Status goes back to the CU.
-//
-// Instruction memory: asynchronous read, addressed by o_pc, so i_instr is the
-//                     instruction at o_pc in the same cycle.
-// Data memory:        synchronous read and write. lw / lb take two cycles:
-//                     cycle 1 (MemPhase = 0): address on o_dmem_addr, PC held;
-//                     cycle 2 (MemPhase = 1): memory not accessed, i_dmem_rd
-//                                             holds the value read; write-back.
-//
-// MemPhase is a flip-flop: mem_phase_r <= ~PCWrite (reset 0). It is 1 only in
-// the cycle after one where the PC was held, i.e. the second cycle of a load.
 module datapath (
-    input  wire        i_clk,
-    input  wire        i_rst,         // synchronous, active high
-    input  wire        i_irq,         // interrupt request
+    // --------- inputs -------------
+    // clock and reset
+    input wire i_clk,
+    input wire i_rst,
 
-    // ---------- instruction memory interface ----------
-    input  wire [31:0] i_instr,       // instruction at o_pc
-    output wire [31:0] o_pc,          // IMEM address
+    // interrupt
+    input wire i_irq, // a request is pending -> CP0
+    input wire [1:0] i_irq_id, // interruption vector select
 
-    // ---------- data memory interface (synchronous read) ----------
-    input  wire [31:0] i_dmem_rd,     // valid in the second cycle of lw / lb
-    output wire [31:0] o_dmem_addr,
-    output wire [31:0] o_dmem_wd,
+    //instruction and memory
+    input wire [31:0] i_instr, //current instruction from IMEM
+    input wire [31:0] i_mem_rd, // read data from the data memory subsystem
 
-    // ---------- control word (CU -> datapath) ----------
-    input  wire        i_reg_write,
-    input  wire [1:0]  i_reg_dst,     // 00: rt, 01: rd, 10: $31
-    input  wire        i_alu_src,     // 0: rt, 1: extended immediate
-    input  wire [3:0]  i_alu_ctrl,
-    input  wire        i_ext_op,      // 0: zero extend, 1: sign extend
-    input  wire        i_load_byte,
-    input  wire [1:0]  i_wb_src,      // 00: ALU, 01: load_ext, 10: PC+4, 11: EPC
-    input  wire [2:0]  i_pc_src,
-    input  wire        i_pc_write,    // enable of the PC register
-    input  wire        i_ie_we,
-    input  wire        i_ie_val,
+    //control word
+    input wire i_reg_write, //register file write enable
+    input wire [1:0] i_reg_dst, // write reg: 00 rt, 01 rd, 10 $31
+    input wire i_alu_src, // ALU B: 0 ReadData2, 1 extended imm
+    input wire [3:0] i_alu_ctrl, 
+    input wire i_ext_op, // 1 sign, 0 zero
+    input wire i_load_byte, // 1 lb, 0 lw
+    input wire [1:0] i_wb_src, // write-back: 00 ALU, 01 load, 10 PC+4, 11 EPC
+    input wire [2:0] i_pc_src, // next pc select
+    input wire i_pc_write, //pc enable (0 in 1st cycle of lw/lb)
+    input wire i_ie_write, // CP0 ie write enable (di/ei)
+    input wire i_ie_val, // value written to ie
 
-    // ---------- status (datapath -> CU) ----------
-    output wire        o_zero,
-    output wire        o_rs_neg,
-    output wire        o_irq_take,
-    output wire        o_mem_phase
+    // ------------- outputs -------------
+    //intruction adress
+    output wire [31:0] o_pc,
+
+    //data memory
+    output wire [31:0] o_alu_result,
+    output wire [31:0] o_store_data, // ReadData2 (rt), written by sw
+
+    //status
+    output wire o_zero,
+    output wire o_rs_neg, // ReadData1[31] (bgez, bgtz)
+    output wire o_irq_take, // interrupt accepted this cycle
+    output wire o_mem_phase // 1 = 2nd cycle of lw/lb
+
 );
+    // decode instructions fields
+    wire [4:0] rs = i_instr[25:21];
+    wire [4:0] rt = i_instr[20:16];
+    wire [4:0] rd = i_instr[15:11];
+    wire [4:0] shamt = i_instr[10:6];
+    wire [15:0] imm = i_instr[15:0];
+    wire [25:0] index = i_instr[25:0];
 
-    // ---------- instruction fields ----------
-    wire [4:0]  rs    = i_instr[25:21];
-    wire [4:0]  rt    = i_instr[20:16];
-    wire [4:0]  rd    = i_instr[15:11];
-    wire [4:0]  shamt = i_instr[10:6];
-    wire [15:0] imm   = i_instr[15:0];
 
-    // ---------- internal nets ----------
-    wire [31:0] next_pc;
-    wire [31:0] pc_plus4;
-    wire [31:0] rd1, rd2;
-    wire [31:0] imm_ext;
-    wire [31:0] alu_b;
-    wire [31:0] alu_y;
-    wire [31:0] load_data;
-    wire [31:0] epc;
-    wire [31:0] wb_data;
-    wire [4:0]  wr_addr;
-
-    // ---------- load wait: MemPhase ----------
-    reg mem_phase_r;
-
-    always @(posedge i_clk) begin
-        if (i_rst)
-            mem_phase_r <= 1'b0;
-        else
-            mem_phase_r <= ~i_pc_write;
+    // RegDst MUX
+    reg [4:0] write_reg;
+    always @(*) begin
+        write_reg = 5'd0; //the $zero cannot be written
+        case(i_reg_dst)
+            2'b00: write_reg = rt;
+            2'b01: write_reg = rd;
+            2'b10: write_reg = 5'd31;
+            default: write_reg = 5'd0;
+        endcase
     end
 
-    assign o_mem_phase = mem_phase_r;
+    // ----------- Register File --------------
+    wire[31:0] rd1;
+    reg [31:0] write_data;
 
-    // ---------- fetch ----------
-    pc_reg u_pc_reg (
-        .i_clk(i_clk), .i_rst(i_rst), .i_we(i_pc_write),
-        .i_next_pc(next_pc), .o_pc(o_pc)
-    );
-
-    next_pc u_next_pc (
-        .i_pc(o_pc), .i_imm(imm), .i_index(i_instr[25:0]),
-        .i_rs_data(rd1), .i_pc_src(i_pc_src),
-        .o_next_pc(next_pc), .o_pc_plus4(pc_plus4)
-    );
-
-    // ---------- decode ----------
-    mux3 #(.W(5)) u_mux_regdst (
-        .i_a(rt), .i_b(rd), .i_c(5'd31), .i_sel(i_reg_dst), .o_y(wr_addr)
-    );
-
-    register_file u_register_file (
-        .i_clk(i_clk), .i_rst(i_rst), .i_we(i_reg_write),
-        .i_ra1(rs), .i_ra2(rt), .i_wa(wr_addr), .i_wd(wb_data),
-        .o_rd1(rd1), .o_rd2(rd2)
-    );
-
-    sign_extend u_sign_extend (
-        .i_imm(imm), .i_ext_op(i_ext_op), .o_ext(imm_ext)
+    register_file u_register_file(
+        .i_clk (i_clk),
+        .i_ra1 (rs),
+        .i_ra2 (rt),
+        .i_wa (write_reg),
+        .i_wd (write_data), // driven by the write-back mux
+        .i_we (i_reg_write),
+        .o_rd1(rd1),
+        .o_rd2(o_store_data)
     );
 
     assign o_rs_neg = rd1[31];
 
-    // ---------- execute ----------
-    mux2_32bit u_mux_alusrc (
-        .i_a(rd2), .i_b(imm_ext), .i_sel(i_alu_src), .o_y(alu_b)
+
+    // ------- sign extend ------------
+    wire [31:0] o_ext;
+    
+    sign_ext u_sign_ext(
+        .i_imm (imm),
+        .i_ext_op (i_ext_op),
+        .o_ext (o_ext)
     );
 
-    alu u_alu (
-        .i_a(rd1), .i_b(alu_b), .i_shamt(shamt), .i_ctrl(i_alu_ctrl),
-        .o_y(alu_y), .o_zero(o_zero)
+
+    // ----------- ALU --------------
+    // ALUSrc MUX, with only 2 inputs
+    wire[31:0] alu_b = i_alu_src ? o_ext : o_store_data;
+
+    alu u_alu(
+        .i_a (rd1),
+        .i_b (alu_b), // output from ALUSrc MUX
+        .i_shamt (shamt),
+        .i_ctrl (i_alu_ctrl),
+        .o_y (o_alu_result), // used inside the datapath
+        .o_zero (o_zero)
     );
 
-    // ---------- memory ----------
-    assign o_dmem_addr = alu_y;
-    assign o_dmem_wd   = rd2;
+    // load extend
+    wire[31:0] load_data;
 
-    load_ext u_load_ext (
-        .i_rd(i_dmem_rd), .i_addr(alu_y[1:0]), .i_load_byte(i_load_byte),
-        .o_data(load_data)
+    load_ext u_load_ext(
+        .i_rd (i_mem_rd),
+        .i_addr (o_alu_result[1:0]),
+        .i_sel (i_load_byte),
+        .o_data (load_data)
     );
 
-    // ---------- COP0 ----------
-    cop0 u_cop0 (
-        .i_clk(i_clk), .i_rst(i_rst),
-        .i_pc(o_pc), .i_irq(i_irq), .i_mem_phase(mem_phase_r),
-        .i_ie_we(i_ie_we), .i_ie_val(i_ie_val),
-        .o_epc(epc), .o_irq_take(o_irq_take)
+    // --------- Fetch and next PC --------------
+    //next pc MUX
+    reg[31:0] r_pc;
+    wire[31:0] pc_plus4;
+    wire [31:0] next_pc;
+
+    next_pc u_next_pc(
+        .i_pc(r_pc),
+        .i_imm (imm),
+        .i_rs_data (rd1),
+        .i_pc_src (i_pc_src),
+        .i_target (index),
+        .i_irq_id (i_irq_id),
+        .o_next_pc (next_pc),
+        .o_pc_plus4 (pc_plus4)
     );
 
-    // ---------- write-back ----------
-    mux4 #(.W(32)) u_mux_wb (
-        .i_a(alu_y), .i_b(load_data), .i_c(pc_plus4), .i_d(epc),
-        .i_sel(i_wb_src), .o_y(wb_data)
+    //pc
+    always @(posedge i_clk) begin
+        if (i_rst)
+            r_pc <= 32'd0; // reset goes to address 0 (j main)
+        else if (i_pc_write)
+            r_pc <= next_pc; // normal update
+    end
+
+    assign o_pc = r_pc; //Instruction address to IMEM
+
+    // --------------- MemPhase and coprocessor0 ----------------
+    //MemPhase
+    reg r_mem_phase;
+
+    always @(posedge i_clk) begin
+        if (i_rst)
+            r_mem_phase <= 1'b0;
+        else r_mem_phase <= ~i_pc_write; // MemPhase: D = ~PcWrite -> reads 1 in the 2nd cycle of lw/lb
+    end
+
+    assign o_mem_phase = r_mem_phase; //status to the control unit
+
+    //COP0
+    wire [31:0] epc;
+    
+    cop0 u_cop0(
+        .i_clk (i_clk),
+        .i_rst (i_rst),
+        .i_pc (o_pc),
+        .i_irq (i_irq),
+        .i_mem_phase (o_mem_phase),
+        .i_ie_we (i_ie_write),
+        .i_ie_val (i_ie_val),
+        .o_epc (epc),
+        .o_irq_take (o_irq_take)
     );
+
+    //write-back MUX
+    always @(*) begin
+        write_data = 32'd0;
+        case(i_wb_src)
+            2'b00: write_data = o_alu_result;
+            2'b01: write_data = load_data;
+            2'b10: write_data = pc_plus4;
+            2'b11: write_data = epc;
+            default: write_data = 32'd0;
+        endcase
+        
+    end
 
 endmodule
+`default_nettype wire

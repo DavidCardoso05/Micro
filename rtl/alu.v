@@ -1,8 +1,5 @@
 `timescale 1ns / 1ps
 
-// Purely combinational. 4-bit control, 10 operations, 6 reserved codes.
-// Not used by mfc0 / di / ei / bgez (their ALUCtrl is a don't care).
-
 module alu (
     input  wire [31:0] i_a,      // rs
     input  wire [31:0] i_b,      // rt or extended immediate
@@ -23,7 +20,7 @@ module alu (
                ALU_NOR = 4'b1000,
                ALU_LUI = 4'b1010;
 
-    // ---------- one shared adder for ADD, SUB and SLT (spec 8.3) ----------
+    // ---------- one shared adder for ADD, SUB and SLT ----------
     // SUB is computed as A + ~B + 1. SLT needs A - B to decide the sign.
     wire        sub_en = (i_ctrl == ALU_SUB) || (i_ctrl == ALU_SLT);
     wire [31:0] b_in   = sub_en ? ~i_b : i_b;
