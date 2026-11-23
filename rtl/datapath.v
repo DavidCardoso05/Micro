@@ -1,5 +1,4 @@
 `timescale 1ns/1ps
-`default_nettype none
 
 module datapath (
     // --------- inputs -------------
@@ -179,8 +178,6 @@ module datapath (
             2'b11: write_data = epc;
             default: write_data = 32'd0;
         endcase
-        
     end
 
 endmodule
-`default_nettype wire

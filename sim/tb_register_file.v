@@ -1,14 +1,5 @@
 `timescale 1ns / 1ps
 
-// Testbench do register_file (usa o IP rf_dpram: RAM distribuida, escrita sincrona,
-// leitura assincrona; sem reset, os registos arrancam a 0 pelo valor por omissao do IP).
-//
-// Temporizacao: o clock tem periodo 10 ns, com flancos de subida em 5, 15, 25, ...
-// As entradas mudam 1 ns depois de cada flanco (6, 16, 26, ...), por isso cada
-// passo e um ciclo completo. As leituras sao combinacionais: no FIM do passo, antes
-// do flanco seguinte, rd1 e rd2 mostram o valor ANTIGO do registo. O que o flanco
-// escreve so aparece no passo seguinte.
-
 module tb_register_file;
     reg clk;
     reg [4:0] ra1, ra2;   // rs e rt: enderecos de leitura

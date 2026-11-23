@@ -7,6 +7,9 @@
 # the project always points at this clone, wherever it lives on disk.
 # Sources are ADDED (referenced in place), never imported/copied, so edits made
 # in the editor are what Vivado synthesizes and simulates.
+# Exception: IP .xci files are IMPORTED (copied into build/), so ip/ is never
+# modified. If an IP is re-customised in the GUI, copy the new .xci from
+# build/vivado/mips.srcs/sources_1/ip/<name>/ back to ip/<name>/ and commit it.
 # To add a new file, put it in rtl/ or sim/ and run this script again
 # (close the project in Vivado first; this recreates build/vivado).
 
@@ -20,13 +23,6 @@ set_property simulator_language Mixed [current_project]
 # RTL
 set rtl [lsort [glob -nocomplain [file join $root rtl *.v]]]
 if {[llength $rtl]} { add_files -norecurse -fileset sources_1 $rtl }
-
-# IP (only the .xci is in git; output products are generated next to it)
-set xcis [lsort [glob -nocomplain [file join $root ip * *.xci]]]
-if {[llength $xcis]} {
-    add_files -norecurse -fileset sources_1 $xcis
-    foreach x $xcis { generate_target all [get_files $x] }
-}
 
 # Testbenches
 set tbs [lsort [glob -nocomplain [file join $root sim *.v]]]

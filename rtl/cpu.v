@@ -1,17 +1,5 @@
 `timescale 1ns / 1ps
-`default_nettype none
 
-// CPU: modulo de integracao. Instancia a unidade de controlo e o datapath e nao
-// tem logica propria. Executa uma instrucao por ciclo, exceto lw e lb (dois ciclos).
-//
-// Arquitetura Harvard: nenhuma das memorias esta dentro do CPU.
-//   Lado das instrucoes : o_pc sai, i_instr entra (IMEM, leitura assincrona).
-//   Lado dos dados      : o_mem_addr, o_mem_wd, o_mem_en e o_mem_rw saem,
-//                         i_mem_rd entra (subsistema da memoria de dados).
-//   Interrupcao         : um unico pedido, i_irq, vindo do GPIO.
-//
-// A palavra de controlo desce da control_unit para o datapath; do datapath voltam
-// quatro sinais de estado: zero, rs_neg, irq_take e mem_phase.
 
 module cpu (
     // clock e reset (reset sincrono, ativo a 1)
@@ -20,6 +8,7 @@ module cpu (
 
     // interrupcao
     input  wire        i_irq,        // pedido pendente (GPIO)
+    input  wire [1:0]  i_irq_id,
 
     // lado das instrucoes
     output wire [31:0] o_pc,         // endereco da instrucao, em bytes
@@ -80,7 +69,7 @@ module cpu (
         .i_rst        (i_rst),
 
         .i_irq        (i_irq),
-        .i_irq_id     (2'b00),        // um so vetor (0x0000_0004): o id fica a 0
+        .i_irq_id     (i_irq_id),   
 
         .i_instr      (i_instr),
         .i_mem_rd     (i_mem_rd),
@@ -107,4 +96,3 @@ module cpu (
     );
 
 endmodule
-`default_nettype wire
