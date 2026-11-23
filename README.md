@@ -30,6 +30,21 @@ em dois ciclos.
 | `sign_ext.v` | Extensão do imediato de 16 bits (com sinal ou com zeros) |
 | `load_ext.v` | Seleção de byte e extensão de sinal para `lb` / `lw` |
 
+### Assembler (`tools/`)
+
+| Ficheiro | Função |
+|---|---|
+| `isa.py` | Definição da ISA: registos, campos, tabela de instruções, `encode()` e `decode()` |
+| `assembler.py` | Assembler de duas passagens: `.asm` → `.mem` (IMEM e DMEM, formato `$readmemh`) |
+| `examples/exemplo.asm` | Programa que usa todas as instruções, pseudo-instruções e diretivas |
+
+```bash
+python3 tools/assembler.py tools/examples/exemplo.asm -l -
+```
+
+Gera `exemplo.mem` (instruções) e `exemplo_data.mem` (dados); `-l -` mostra a
+listagem no ecrã. Os `.mem` gerados não vão para o git.
+
 ### Testbenches (`sim/`)
 
 `tb_alu.v`, `tb_cop0.v`, `tb_next_pc.v`.
