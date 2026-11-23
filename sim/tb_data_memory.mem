@@ -1,0 +1,4 @@
+// Conteudo inicial da DMEM para tb_data_memory (formato $readmemh)
+6C6C6548   // 0x00  "Hell" (little-endian: 48 65 6C 6C)
+0000006F   // 0x04  "o"
+// 0x08 em diante: nao preenchido, fica a 0
