@@ -23,7 +23,6 @@ module datapath (
     input wire i_load_byte, // 1 lb, 0 lw
     input wire [1:0] i_wb_src, // write-back: 00 ALU, 01 load, 10 PC+4, 11 EPC
     input wire [2:0] i_pc_src, // next pc select
-    input wire i_pc_write, //pc enable (0 in 1st cycle of lw/lb)
     input wire i_ie_write, // CP0 ie write enable (di/ei)
     input wire i_ie_val, // value written to ie
 
@@ -38,8 +37,7 @@ module datapath (
     //status
     output wire o_zero,
     output wire o_rs_neg, // ReadData1[31] (bgez, bgtz)
-    output wire o_irq_take, // interrupt accepted this cycle
-    output wire o_mem_phase // 1 = 2nd cycle of lw/lb
+    output wire o_irq_take // interrupt accepted this cycle
 
 );
     // decode instructions fields
@@ -135,24 +133,13 @@ module datapath (
     always @(posedge i_clk) begin
         if (i_rst)
             r_pc <= 32'd0; // reset goes to address 0 (j main)
-        else if (i_pc_write)
+        else
             r_pc <= next_pc; // normal update
     end
 
     assign o_pc = r_pc; //Instruction address to IMEM
 
-    // --------------- MemPhase and coprocessor0 ----------------
-    //MemPhase
-    reg r_mem_phase;
-
-    always @(posedge i_clk) begin
-        if (i_rst)
-            r_mem_phase <= 1'b0;
-        else r_mem_phase <= ~i_pc_write; // MemPhase: D = ~PcWrite -> reads 1 in the 2nd cycle of lw/lb
-    end
-
-    assign o_mem_phase = r_mem_phase; //status to the control unit
-
+    // --------------- coprocessor0 ----------------
     //COP0
     wire [31:0] epc;
     
@@ -161,7 +148,6 @@ module datapath (
         .i_rst (i_rst),
         .i_pc (o_pc),
         .i_irq (i_irq),
-        .i_mem_phase (o_mem_phase),
         .i_ie_we (i_ie_write),
         .i_ie_val (i_ie_val),
         .o_epc (epc),

@@ -5,7 +5,6 @@ module control_unit(
     input wire i_zero,
     input wire i_rs_neg, //ReadData1[31] (rs < 0); used by bgez, bgtz
     input wire i_irq_take,
-    input wire i_mem_phase, // 0 for the first lb/lw cycle
 
     // datapath control
     output wire o_reg_write, // 1 = write register file
@@ -15,8 +14,7 @@ module control_unit(
     output reg o_ext_op, // 1 sign ext; 0 zero ext
     output reg o_load_byte, // 0 = word (lw); 1 = sign_extended byte (lb)
     output reg [1:0] o_wb_src, // write-back: 00 ALU result, 01 load data, 10 PC+4 (jal), 11 EPC (mfc0)
-    output wire [2:0] o_pc_src, // next PC: 000 PC+4, 001 branch, 010 jump, 011 rs (jr), 100 irq vector, 101-111 reserve
-    output wire o_pc_write, // 0 only in the first ccycle of lw/lb
+    output reg [2:0] o_pc_src, // next PC: 000 PC+4, 001 branch, 010 jump, 011 rs (jr), 100 irq vector, 101-111 reserve
     output wire o_ie_write, // 1 = di/ei writes IE; forced 0 on irq_take
     output reg o_ie_val, // new IE value = instr[5] (0 = di, 1 = ei)
 
@@ -109,7 +107,7 @@ module control_unit(
     wire [2:0] sel = i_instr[2:0]; // COP0 sel
     wire sc = i_instr[5]; // di = 0, ei = 1
 
-    // ----- decoded signals, before the wait / interrupt logic -----
+    // ----- decoded signals, before the interrupt logic -----
     reg dec_reg_write;
     reg dec_mem_enable;
     reg dec_mem_rw;
@@ -224,20 +222,22 @@ module control_unit(
     end
 
     //=============================
-    // 3. Load wait
-    //=============================
-    // 1st cycle of lw / lb: hold the PC and do not write the register file yet
-    wire mem_wait = dec_mem_enable & dec_mem_rw & ~i_mem_phase;
-
-    //=============================
-    // 4. Outputs (interrupt wins over everything)
+    // 3. Outputs (interrupt wins over everything)
     //=============================
     // irq_take cancels the current instruction: no register, memory or IE write,
     // and the PC goes to the interrupt vector (EPC keeps this instruction's PC).
-    assign o_pc_src = i_irq_take ? PC_VECTOR :
-        branch_taken ? PC_BRANCH : dec_pc_src;
-    assign o_pc_write = ~mem_wait | i_irq_take;
-    assign o_reg_write = dec_reg_write & ~mem_wait & ~i_irq_take;
+
+    //implementation of the Next PC Selection Decision Tree
+    always @(*) begin
+        o_pc_src = PC_NEXT; // default: PC+4
+        if (i_irq_take)
+            o_pc_src = PC_VECTOR; 
+        else if (branch_taken) 
+            o_pc_src = dec_branch;
+        else o_pc_src = dec_pc_src;
+    end
+
+    assign o_reg_write = dec_reg_write & ~i_irq_take;
     assign o_mem_enable = dec_mem_enable & ~i_irq_take;
     assign o_mem_rw = dec_mem_rw;
     assign o_ie_write = dec_ie_write & ~i_irq_take;

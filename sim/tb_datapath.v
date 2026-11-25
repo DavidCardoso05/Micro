@@ -6,7 +6,7 @@
 // Temporizacao: o clock tem periodo 10 ns, com flancos de subida em 5, 15, 25, ...
 // As entradas mudam 1 ns depois de cada flanco (6, 16, 26, ...), por isso cada
 // passo e um ciclo completo. Le-se o resultado do ciclo no FIM do passo (antes do
-// flanco seguinte): PC, alu_result, zero, rs_neg, irq_take e mem_phase sao os dessa
+// flanco seguinte): PC, alu_result, zero, rs_neg e irq_take sao os dessa
 // instrucao. O que o flanco escreve (registo, PC, EPC, IE) aparece no passo seguinte.
 
 module tb_datapath;
@@ -26,7 +26,6 @@ module tb_datapath;
     reg load_byte;
     reg [1:0] wb_src;
     reg [2:0] pc_src;
-    reg pc_write;
     reg ie_write;
     reg ie_val;
 
@@ -36,7 +35,6 @@ module tb_datapath;
     wire zero;
     wire rs_neg;
     wire irq_take;
-    wire mem_phase;
 
     datapath u_datapath (
         .i_clk(clk),
@@ -53,7 +51,6 @@ module tb_datapath;
         .i_load_byte(load_byte),
         .i_wb_src(wb_src),
         .i_pc_src(pc_src),
-        .i_pc_write(pc_write),
         .i_ie_write(ie_write),
         .i_ie_val(ie_val),
         .o_pc(pc),
@@ -61,8 +58,7 @@ module tb_datapath;
         .o_store_data(store_data),
         .o_zero(zero),
         .o_rs_neg(rs_neg),
-        .o_irq_take(irq_take),
-        .o_mem_phase(mem_phase)
+        .o_irq_take(irq_take)
     );
 
     // Codigos de controlo da ALU
@@ -109,7 +105,7 @@ module tb_datapath;
         begin
             reg_write = 1'b0; reg_dst = DST_RT; alu_src = SRC_REG; alu_ctrl = ALU_ADD;
             ext_op = EXT_SIGN; load_byte = 1'b0; wb_src = WB_ALU; pc_src = PC_NEXT;
-            pc_write = 1'b1; ie_write = 1'b0; ie_val = 1'b0;
+            ie_write = 1'b0; ie_val = 1'b0;
         end
     endtask
 
@@ -251,7 +247,7 @@ module tb_datapath;
         #10;  // PC = 0xC0; PC -> 0x84 (volta a seguir ao jal)
 
         // =====================================================
-        // IV. Memoria de dados: sw (1 ciclo), lw e lb (2 ciclos)
+        // IV. Memoria de dados: sw, lw e lb (1 ciclo)
         // =====================================================
 
         // sw $8, 8($0)   (a memoria e externa: so se ve o endereco e o dado)
@@ -259,27 +255,17 @@ module tb_datapath;
         alu_src = SRC_IMM; alu_ctrl = ALU_ADD; ext_op = EXT_SIGN;
         #10;  // PC = 0x84, alu_result = 8 (endereco), store_data = 5 ($8); PC -> 0x88
 
-        // lw $18, 4($0)   ciclo 1: calcula o endereco, o PC e o registo ficam parados
-        instr = 32'h8C120004; ctrl_nop;
-        alu_src = SRC_IMM; alu_ctrl = ALU_ADD; ext_op = EXT_SIGN; pc_write = 0;
-        #10;  // PC = 0x88, alu_result = 4, mem_phase = 0; no flanco PC fica 0x88 e mem_phase -> 1
-
-        // lw $18, 4($0)   ciclo 2: o dado chega e e escrito
+        // lw $18, 4($0)   o dado chega no mesmo ciclo e e escrito no flanco
         instr = 32'h8C120004; ctrl_nop;
         alu_src = SRC_IMM; alu_ctrl = ALU_ADD; ext_op = EXT_SIGN;
         reg_write = 1; wb_src = WB_LOAD; mem_rd = 32'hDEADBEEF;
-        #10;  // PC = 0x88, mem_phase = 1; no flanco $18 = DEADBEEF, PC -> 0x8C, mem_phase -> 0
+        #10;  // PC = 0x88, alu_result = 4; no flanco $18 = DEADBEEF, PC -> 0x8C
 
-        // lb $19, 3($0)   ciclo 1
-        instr = 32'h80130003; ctrl_nop;
-        alu_src = SRC_IMM; alu_ctrl = ALU_ADD; ext_op = EXT_SIGN; pc_write = 0; mem_rd = 32'h0;
-        #10;  // PC = 0x8C, alu_result = 3, mem_phase = 0; no flanco PC fica 0x8C e mem_phase -> 1
-
-        // lb $19, 3($0)   ciclo 2: addr[1:0] = 3 escolhe o byte [31:24] = DE, com sinal
+        // lb $19, 3($0)   addr[1:0] = 3 escolhe o byte [31:24] = DE, com sinal
         instr = 32'h80130003; ctrl_nop;
         alu_src = SRC_IMM; alu_ctrl = ALU_ADD; ext_op = EXT_SIGN;
         reg_write = 1; wb_src = WB_LOAD; load_byte = 1; mem_rd = 32'hDEADBEEF;
-        #10;  // PC = 0x8C, mem_phase = 1; no flanco $19 = FFFFFFDE, PC -> 0x90, mem_phase -> 0
+        #10;  // PC = 0x8C, alu_result = 3; no flanco $19 = FFFFFFDE, PC -> 0x90
 
         // add $20, $18, $0   (le $18 para confirmar o lw)
         instr = 32'h0240A020; ctrl_nop;
@@ -292,7 +278,7 @@ module tb_datapath;
         #10;  // PC = 0x94, alu_result = FFFFFFDE; no flanco $21 = FFFFFFDE, PC -> 0x98
 
         // =====================================================
-        // V. Interrupcoes: ei, ei_shadow, MemPhase, entrada e retorno
+        // V. Interrupcoes: ei, ei_shadow, entrada e retorno
         // =====================================================
 
         // ei   (IE = 1; a instrucao seguinte fica protegida pelo ei_shadow)
@@ -300,17 +286,12 @@ module tb_datapath;
         ie_write = 1; ie_val = 1;
         #10;  // PC = 0x98, irq_take = 0; no flanco IE = 1, shadow = 1, PC -> 0x9C
 
-        // lw $22, 0($0)   ciclo 1, com irq = 1: protegido pelo shadow
-        instr = 32'h8C160000; ctrl_nop;
-        alu_src = SRC_IMM; alu_ctrl = ALU_ADD; ext_op = EXT_SIGN; pc_write = 0;
-        irq = 1;
-        #10;  // PC = 0x9C, irq_take = 0 (shadow = 1); no flanco shadow -> 0, mem_phase -> 1
-
-        // lw $22, 0($0)   ciclo 2, com irq = 1: bloqueado pelo MemPhase
+        // lw $22, 0($0)   com irq = 1: protegido pelo shadow
         instr = 32'h8C160000; ctrl_nop;
         alu_src = SRC_IMM; alu_ctrl = ALU_ADD; ext_op = EXT_SIGN;
         reg_write = 1; wb_src = WB_LOAD; mem_rd = 32'h0000CAFE;
-        #10;  // PC = 0x9C, irq_take = 0 (mem_phase = 1); no flanco $22 = 0000CAFE, PC -> 0xA0
+        irq = 1;
+        #10;  // PC = 0x9C, irq_take = 0 (shadow = 1); no flanco $22 = 0000CAFE, PC -> 0xA0, shadow -> 0
 
         // addi $23, $0, 9   irq = 1 aceite: o controlo cancela a instrucao e vai para o vetor 2
         instr = 32'h20170009; ctrl_nop;

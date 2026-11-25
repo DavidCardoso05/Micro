@@ -5,18 +5,17 @@ module cop0 (
     input  wire        i_rst,        // synchronous, active high
     input  wire [31:0] i_pc,         // PC of the instruction being interrupted
     input  wire        i_irq,        // interrupt request
-    input  wire        i_mem_phase,  // 1 in the second cycle of lw / lb
     input  wire        i_ie_we,      // di / ei from the control unit
     input  wire        i_ie_val,     // 0: di, 1: ei
     output wire [31:0] o_epc,        // to the write-back mux (WBSrc = 11)
     output wire        o_irq_take    // to the control unit
 );
 
-    reg [31:0] epc_r;
-    reg        ie_r;
-    reg        ei_shadow_r;
+    reg [31:0] epc_r; //epc value to register
+    reg        ie_r; // ie value to register
+    reg        ei_shadow_r; //ei_shadow to register
 
-    assign o_irq_take = i_irq & ie_r & ~ei_shadow_r & ~i_mem_phase;
+    assign o_irq_take = i_irq & ie_r & ~ei_shadow_r;
     assign o_epc = epc_r;
 
     always @(posedge i_clk) begin

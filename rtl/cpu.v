@@ -1,28 +1,37 @@
 `timescale 1ns / 1ps
 
-
 module cpu (
-    // clock e reset (reset sincrono, ativo a 1)
+    // ==================
+    // Inputs
+    // ==================
+
+    // clock and reset
     input  wire        i_clk,
     input  wire        i_rst,
 
-    // interrupcao
-    input  wire        i_irq,        // pedido pendente (GPIO)
+    //Instruction and memory
+    input wire [31:0] i_instr, // read instruction in IMEM
+    input wire [31:0] i_mem_rd, //read word 
+
+    // interruption and memory
+    input  wire        i_irq,        // interruption pending
     input  wire [1:0]  i_irq_id,
 
-    // lado das instrucoes
-    output wire [31:0] o_pc,         // endereco da instrucao, em bytes
-    input  wire [31:0] i_instr,      // instrucao lida da IMEM
+    //============================
+    // Outputs
+    //============================
 
-    // lado dos dados
-    output wire [31:0] o_mem_addr,   // endereco em bytes (resultado da ALU)
-    output wire [31:0] o_mem_wd,     // dado do sw (ReadData2)
-    output wire        o_mem_en,     // MemEnable: ha acesso neste ciclo
-    output wire        o_mem_rw,     // MemRW: 1 le (lw, lb), 0 escreve (sw)
-    input  wire [31:0] i_mem_rd      // palavra lida (ja passou pelo mux de leitura)
+    // intruction memory
+    output wire [31:0] o_pc,         // instruction address 
+
+    // data memory subsystem
+    output wire [31:0] o_mem_addr,   // ALUResult
+    output wire [31:0] o_mem_wd,     // ReadData2
+    output wire        o_mem_en,     // MemEnable: can read/write
+    output wire        o_mem_rw,     // MemRW: 1 read (lw, lb), 0 write (sw)
 );
 
-    // ---------- palavra de controlo (control_unit -> datapath) ----------
+    // ---------- control word (control_unit -> datapath) ----------
     wire        reg_write;
     wire [1:0]  reg_dst;
     wire        alu_src;
@@ -31,22 +40,19 @@ module cpu (
     wire        load_byte;
     wire [1:0]  wb_src;
     wire [2:0]  pc_src;
-    wire        pc_write;
     wire        ie_write;
     wire        ie_val;
 
-    // ---------- estado (datapath -> control_unit) ----------
+    // ---------- flags (datapath -> control_unit) ----------
     wire        zero;
     wire        rs_neg;
     wire        irq_take;
-    wire        mem_phase;
 
     control_unit u_control_unit (
         .i_instr      (i_instr),
         .i_zero       (zero),
         .i_rs_neg     (rs_neg),
         .i_irq_take   (irq_take),
-        .i_mem_phase  (mem_phase),
 
         .o_reg_write  (reg_write),
         .o_reg_dst    (reg_dst),
@@ -56,7 +62,6 @@ module cpu (
         .o_load_byte  (load_byte),
         .o_wb_src     (wb_src),
         .o_pc_src     (pc_src),
-        .o_pc_write   (pc_write),
         .o_ie_write   (ie_write),
         .o_ie_val     (ie_val),
 
@@ -82,7 +87,6 @@ module cpu (
         .i_load_byte  (load_byte),
         .i_wb_src     (wb_src),
         .i_pc_src     (pc_src),
-        .i_pc_write   (pc_write),
         .i_ie_write   (ie_write),
         .i_ie_val     (ie_val),
 
@@ -91,8 +95,7 @@ module cpu (
         .o_store_data (o_mem_wd),
         .o_zero       (zero),
         .o_rs_neg     (rs_neg),
-        .o_irq_take   (irq_take),
-        .o_mem_phase  (mem_phase)
+        .o_irq_take   (irq_take)
     );
 
 endmodule
