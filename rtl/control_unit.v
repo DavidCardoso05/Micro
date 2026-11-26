@@ -233,7 +233,7 @@ module control_unit(
         if (i_irq_take)
             o_pc_src = PC_VECTOR; 
         else if (branch_taken) 
-            o_pc_src = dec_branch;
+            o_pc_src = PC_BRANCH;
         else o_pc_src = dec_pc_src;
     end
 

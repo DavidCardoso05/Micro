@@ -28,7 +28,7 @@ module cpu (
     output wire [31:0] o_mem_addr,   // ALUResult
     output wire [31:0] o_mem_wd,     // ReadData2
     output wire        o_mem_en,     // MemEnable: can read/write
-    output wire        o_mem_rw,     // MemRW: 1 read (lw, lb), 0 write (sw)
+    output wire        o_mem_rw   // MemRW: 1 read (lw, lb), 0 write (sw)
 );
 
     // ---------- control word (control_unit -> datapath) ----------
